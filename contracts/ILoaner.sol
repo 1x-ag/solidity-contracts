@@ -1,19 +1,19 @@
 pragma solidity ^0.5.0;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./ILoanPool.sol";
 
-contract Loaner {
+contract ILoaner {
 
     modifier withLoan(
         ILoanPool pool,
-        IERC20 token,
+        address token,
         uint256 amount
     ) {
         if (msg.sender != address(this)) {
             pool.lend(
                 token,
                 amount,
-                this,
+                address(this),
                 msg.data
             );
             return;
@@ -35,6 +35,6 @@ contract Loaner {
         external
     {
         (bool success,) = address(this).call(abi.encodePacked(data, expectedReturn));
-        require(success);
+        require(success, "External call failed");
     }
 }
