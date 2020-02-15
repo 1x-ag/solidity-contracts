@@ -2,6 +2,13 @@ pragma solidity ^0.5.0;
 
 contract LoanHolder {
     address public owner = msg.sender;
+    address public sellTokenAddress;
+    address public buyTokenAddress;
+
+    constructor(address _sellTokenAddress, address _buyTokenAddress) public {
+        sellTokenAddress = _sellTokenAddress;
+        buyTokenAddress = _buyTokenAddress;
+    }
 
     function () external payable {
     }
