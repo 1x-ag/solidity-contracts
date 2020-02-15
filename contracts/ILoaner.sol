@@ -3,9 +3,9 @@ pragma solidity ^0.5.0;
 import "./ILoanPool.sol";
 
 contract ILoaner {
+    ILoanPool internal pool = ILoanPool(0); // TODO: use actual flashloan pool
 
     modifier withLoan(
-        ILoanPool pool,
         address token,
         uint256 amount
     ) {
