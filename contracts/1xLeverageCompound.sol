@@ -28,7 +28,9 @@ contract OneXLeverageCompound is AaveFlashLoanReciever {
         _;
     }
 
-    function() external payable {}
+    function() external payable {
+        require(msg.sender != tx.origin, "Not allowed");
+    }
 
     function openPosition(
         address sellTokenAddress,
@@ -87,7 +89,7 @@ contract OneXLeverageCompound is AaveFlashLoanReciever {
             holder.sellTokenAddress,
             sellTokenAmount.mul(leverageRatio - 1),
             abi.encodeWithSelector(
-                this.openPositionCallback.selector,
+                this.closePositionCallback.selector,
                 holder,
                 amount
             )
