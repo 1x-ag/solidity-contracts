@@ -56,6 +56,7 @@ contract OneXLeverageCompound is AaveFlashLoanReciever {
                 sellTokenAmount,
                 buyTokenAddress,
                 leverageRatio
+                // sellTokenRepayAmount added dynamically in executeOperation
             )
         );
     }
@@ -82,16 +83,17 @@ contract OneXLeverageCompound is AaveFlashLoanReciever {
 
     function closePosition(LoanHolder holder) external onlyTokenOwner(holder)
     {
-        uint256 amount = ICERC20(_getCTokenbyToken(holder.sellTokenAddress)).borrowBalanceCurrent(address(holder));
+        uint256 borrowedAmount = ICERC20(_getCTokenbyToken(holder.sellTokenAddress)).borrowBalanceCurrent(address(holder));
 
         aavePool.flashLoan(
             address(this),
             holder.sellTokenAddress,
-            sellTokenAmount.mul(leverageRatio - 1),
+            borrowedAmount,
             abi.encodeWithSelector(
                 this.closePositionCallback.selector,
                 holder,
-                amount
+                borrowedAmount
+                // sellTokenRepayAmount added dynamically in executeOperation
             )
         );
 
@@ -116,7 +118,7 @@ contract OneXLeverageCompound is AaveFlashLoanReciever {
             IERC20(buyTokenAddress).universalBalanceOf(address(this)),
             sellTokenAddress
         );
-        require(totalSellTokenAmount > sellTokenRepayAmount, "not enough tokens to repay flash loan");
+        //require(totalSellTokenAmount > sellTokenRepayAmount, "not enough tokens to repay flash loan");
         // repay flash loan with sellToken
         _repayFlashLoan(sellTokenAddress, sellTokenAmountToReturn);
         // send remainder to owner
@@ -191,7 +193,6 @@ contract OneXLeverageCompound is AaveFlashLoanReciever {
         } else {
             holder.perform(address(this), token.universalBalanceOf(address(holder)), "");
         }
-
     }
 
     function _mint(address holder, address tokenAddress, uint256 amount) private {
