@@ -708,7 +708,7 @@ contract FlashLoanAave {
     function _flashLoan(IERC20 token, uint256 amount, bytes memory data) internal {
         POOL.flashLoan(
             address(this),
-            address(token),
+            token.isETH() ? 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE : address(token),
             amount,
             data
         );
