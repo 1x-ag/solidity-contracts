@@ -80,7 +80,7 @@ contract OneLeverage is ERC20, ERC20Detailed {
         require(balanceOf(user) != 0, "Can't close non-existing position");
 
         IHolder holder = getOrCreateHolder(user);
-        if (newDelegate != address(0)) {
+        if (newDelegate != address(0) && msg.sender == user) {
             HolderProxy(address(uint160(address(holder)))).upgradeDelegate(newDelegate);
         }
 
