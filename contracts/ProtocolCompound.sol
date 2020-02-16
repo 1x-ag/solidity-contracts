@@ -3,11 +3,10 @@ pragma solidity ^0.5.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interface/compound/ICERC20.sol";
 import "./interface/compound/ICompoundController.sol";
-import "./IHolder.sol";
 import "./UniversalERC20.sol";
 
 
-contract ProtocolCompound is IHolder {
+contract ProtocolCompound {
 
     using UniversalERC20 for IERC20;
 

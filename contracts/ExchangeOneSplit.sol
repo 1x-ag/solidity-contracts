@@ -4,10 +4,9 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interface/IOneSplit.sol";
 import "./UniversalERC20.sol";
-import "./IHolder.sol";
 
 
-contract ExchangeOneSplit is IHolder {
+contract ExchangeOneSplit {
 
     using SafeMath for uint256;
     using UniversalERC20 for IERC20;

@@ -14,13 +14,19 @@ contract HolderProxy {
     }
 
     function() external payable {
-        require(delegate != address(0), "Delegate not initialized");
+        address _impl = delegate;
+        require(_impl != address(0), "Delegate not initialized");
+
         assembly {
-            let _target := sload(0)
-            calldatacopy(0x0, 0x0, calldatasize)
-            let result := delegatecall(gas, _target, 0x0, calldatasize, 0x0, 0)
-            returndatacopy(0x0, 0x0, returndatasize)
-            switch result case 0 {revert(0, 0)} default {return (0, returndatasize)}
+            let ptr := mload(0x40)
+            calldatacopy(ptr, 0, calldatasize)
+            let result := delegatecall(gas, _impl, ptr, calldatasize, 0, 0)
+            let size := returndatasize
+            returndatacopy(ptr, 0, size)
+
+            switch result
+            case 0 { revert(ptr, size) }
+            default { return(ptr, size) }
         }
     }
 }

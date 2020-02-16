@@ -581,19 +581,6 @@ contract IHolder {
 
     function collateralAmount(IERC20 token) public view returns(uint256);
     function borrowAmount(IERC20 token) public view returns(uint256);
-
-    // Internal API
-
-    function _flashLoan(IERC20 asset, uint256 amount, bytes memory data) internal;
-    function _repayFlashLoan(IERC20 token, uint256 amount) internal;
-
-    function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount) internal returns(uint256);
-
-    function _deposit(IERC20 token, uint256 amount) internal;
-    function _redeem(IERC20 token, uint256 amount) internal;
-    function _redeemAll(IERC20 token) internal;
-    function _borrow(IERC20 token, uint256 amount) internal;
-    function _repay(IERC20 token, uint256 amount) internal;
 }
 
 // File: contracts/HolderProxy.sol
@@ -614,13 +601,19 @@ contract HolderProxy {
     }
 
     function() external payable {
-        require(delegate != address(0), "Delegate not initialized");
+        address _impl = delegate;
+        require(_impl != address(0), "Delegate not initialized");
+
         assembly {
-            let _target := sload(0)
-            calldatacopy(0x0, 0x0, calldatasize)
-            let result := delegatecall(gas, _target, 0x0, calldatasize, 0x0, 0)
-            returndatacopy(0x0, 0x0, returndatasize)
-            switch result case 0 {revert(0, 0)} default {return (0, returndatasize)}
+            let ptr := mload(0x40)
+            calldatacopy(ptr, 0, calldatasize)
+            let result := delegatecall(gas, _impl, ptr, calldatasize, 0, 0)
+            let size := returndatasize
+            returndatacopy(ptr, 0, size)
+
+            switch result
+            case 0 { revert(ptr, size) }
+            default { return(ptr, size) }
         }
     }
 }
@@ -865,6 +858,7 @@ library UniversalERC20 {
 // File: contracts/OneLeverage.sol
 
 pragma solidity ^0.5.0;
+
 
 
 

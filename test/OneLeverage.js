@@ -3,18 +3,28 @@
 
 const OneLeverage = artifacts.require('OneLeverage');
 const HolderOne = artifacts.require('HolderOne');
+const Token = artifacts.require('Token');
 
-contract('OneLeverage', function ([_, addr1]) {
+contract('OneLeverage', function ([_, w1, w2]) {
     describe('OneLeverage', async function () {
-        it('should be ok', async function () {
-            this.token = await OneLeverage.new(
+        beforeEach(async function () {
+            this.token = await Token.new(1000000000);
+            this.holder = await HolderOne.new();
+            this.one = await OneLeverage.new(
                 "1x.ag 2x ETH-DAI",
                 "2xETHDAI",
                 "0x0000000000000000000000000000000000000000",
-                "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-                2
+                this.token.address,
+                5
             );
-            this.holder = await HolderOne.new();
+
+            await this.token.transfer(w1, 1000000);
+            await this.token.transfer(w2, 1000000);
+        });
+
+        it('should be ok', async function () {
+            await this.token.approve(this.one.address, 1000, { from: w1 });
+            await this.one.openPosition(1000, this.holder.address, { from: w1 });
         });
     });
 });

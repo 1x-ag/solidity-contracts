@@ -263,19 +263,6 @@ contract IHolder {
 
     function collateralAmount(IERC20 token) public view returns(uint256);
     function borrowAmount(IERC20 token) public view returns(uint256);
-
-    // Internal API
-
-    function _flashLoan(IERC20 asset, uint256 amount, bytes memory data) internal;
-    function _repayFlashLoan(IERC20 token, uint256 amount) internal;
-
-    function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount) internal returns(uint256);
-
-    function _deposit(IERC20 token, uint256 amount) internal;
-    function _redeem(IERC20 token, uint256 amount) internal;
-    function _redeemAll(IERC20 token) internal;
-    function _borrow(IERC20 token, uint256 amount) internal;
-    function _repay(IERC20 token, uint256 amount) internal;
 }
 
 // File: @openzeppelin/contracts/utils/Address.sol
@@ -567,6 +554,8 @@ contract HolderBase is IHolder {
                 // repayAmount added dynamically in executeOperation
             )
         );
+
+        return collateralAmount(collateral);
     }
 
     function openPositionCallback(
@@ -625,6 +614,19 @@ contract HolderBase is IHolder {
         _repayFlashLoan(debt, repayAmount);
         debt.universalTransfer(user, returnedAmount.sub(repayAmount));
     }
+
+    // Internals for overriding
+
+    function _flashLoan(IERC20 asset, uint256 amount, bytes memory data) internal;
+    function _repayFlashLoan(IERC20 token, uint256 amount) internal;
+
+    function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount) internal returns(uint256);
+
+    function _deposit(IERC20 token, uint256 amount) internal;
+    function _redeem(IERC20 token, uint256 amount) internal;
+    function _redeemAll(IERC20 token) internal;
+    function _borrow(IERC20 token, uint256 amount) internal;
+    function _repay(IERC20 token, uint256 amount) internal;
 }
 
 // File: contracts/interface/aave/IFlashLoanReceiver.sol
@@ -687,9 +689,9 @@ contract FlashLoanAave is IHolder {
     )
         external
     {
-        require(msg.sender == address(pool), "Access denied");
-        (bool success,) = address(this).call(abi.encodePacked(params, amount.add(fee)));
-        require(success, "External call failed");
+        require(msg.sender == address(pool), "Access denied, only pool alowed");
+        (bool success, bytes memory data) = address(this).call(abi.encodePacked(params, amount.add(fee)));
+        require(success, string(abi.encodePacked("External call failed: ", data)));
     }
 }
 
@@ -762,8 +764,7 @@ pragma solidity ^0.5.0;
 
 
 
-
-contract ExchangeOneSplit is IHolder {
+contract ExchangeOneSplit {
 
     using SafeMath for uint256;
     using UniversalERC20 for IERC20;
@@ -825,8 +826,7 @@ pragma solidity ^0.5.0;
 
 
 
-
-contract ProtocolCompound is IHolder {
+contract ProtocolCompound {
 
     using UniversalERC20 for IERC20;
 

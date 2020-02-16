@@ -38,8 +38,8 @@ contract FlashLoanAave is IHolder {
     )
         external
     {
-        require(msg.sender == address(pool), "Access denied");
-        (bool success,) = address(this).call(abi.encodePacked(params, amount.add(fee)));
-        require(success, "External call failed");
+        require(msg.sender == address(pool), "Access denied, only pool alowed");
+        (bool success, bytes memory data) = address(this).call(abi.encodePacked(params, amount.add(fee)));
+        require(success, string(abi.encodePacked("External call failed: ", data)));
     }
 }
