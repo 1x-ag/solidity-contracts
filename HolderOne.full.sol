@@ -871,6 +871,65 @@ contract ICERC20 is IERC20 {
     function repayBorrow(uint256 repayAmount) external returns (uint256);
 }
 
+// File: contracts/CompoundUtils.sol
+
+pragma solidity ^0.5.0;
+
+
+
+
+
+contract CompoundUtils {
+    using UniversalERC20 for IERC20;
+
+    function _getCToken(IERC20 token) internal pure returns(ICERC20) {
+        if (token == IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F)) {  // DAI
+            return ICERC20(0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643);  // cDAI
+        } else if (token.isETH()) { // ETH
+            return ICERC20(0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5);  // cETH
+        } else {
+            revert("Unsupported token");
+        }
+    }
+}
+
+// File: contracts/interface/chainlink/IAggregator.sol
+
+pragma solidity ^0.5.0;
+
+
+interface IAggregator {
+  function latestAnswer() external view returns (int256);
+}
+
+// File: contracts/OracleChainLink.sol
+
+pragma solidity ^0.5.0;
+
+
+
+
+
+contract OracleChainLink {
+    using UniversalERC20 for IERC20;
+
+    function getChainLinkOracleByToken(IERC20 token) private pure returns (IAggregator) {
+        if (token == IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F)) {  // DAI
+            return IAggregator(0x037E8F2125bF532F3e228991e051c8A7253B642c);
+        } else {
+            revert("Unsupported token");
+        }
+    }
+
+    function _getPrice(IERC20 token) internal view returns (uint256) {
+        if (token.isETH()) {
+            return 1e18;
+        }
+
+        return uint256(getChainLinkOracleByToken(token).latestAnswer());
+    }
+}
+
 // File: contracts/ProtocolCompound.sol
 
 pragma solidity ^0.5.0;
@@ -881,7 +940,9 @@ pragma solidity ^0.5.0;
 
 
 
-contract ProtocolCompound {
+
+
+contract ProtocolCompound is CompoundUtils, OracleChainLink {
     using SafeMath for uint256;
     using UniversalERC20 for IERC20;
 
@@ -894,13 +955,10 @@ contract ProtocolCompound {
     }
 
     function _pnl(IERC20 collateral, IERC20 debt) internal returns(uint256) {
-        ICERC20 cCollateral = _getCToken(collateral);
-        ICERC20 cDebt = _getCToken(debt);
-        IPriceOracle oracle = cCollateral.comptroller().oracle();
-        return oracle.getUnderlyingPrice(address(cCollateral)).mul(collateralAmount(collateral))
+        return _getPrice(collateral).mul(collateralAmount(collateral))
             .mul(1e18)
             .div(
-                oracle.getUnderlyingPrice(address(cDebt)).mul(borrowAmount(debt))
+                _getPrice(debt).mul(borrowAmount(debt))
             );
     }
 
@@ -954,16 +1012,6 @@ contract ProtocolCompound {
     }
 
     // Private
-
-    function _getCToken(IERC20 token) private pure returns(ICERC20) {
-        if (token == IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F)) {  // DAI
-            return ICERC20(0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643);  // cDAI
-        } else if (token == IERC20(0)) { // ETH
-            return ICERC20(0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5);  // cETH
-        } else {
-            require(false, "Unsupported token");
-        }
-    }
 
     function _enterMarket(ICERC20 cToken) private {
         address[] memory tokens = new address[](1);
