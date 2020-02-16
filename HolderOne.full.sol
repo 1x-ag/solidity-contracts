@@ -773,7 +773,7 @@ contract ExchangeOneSplit {
     function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount) internal returns(uint256) {
         fromToken.universalApprove(address(ONE_SPLIT), amount);
 
-        uint256 beforeBalance = toToken.balanceOf(address(this));
+        uint256 beforeBalance = toToken.universalBalanceOf(address(this));
         ONE_SPLIT.goodSwap(
             fromToken,
             toToken,
@@ -783,7 +783,7 @@ contract ExchangeOneSplit {
             0
         );
 
-        return toToken.balanceOf(address(this)).sub(beforeBalance);
+        return toToken.universalBalanceOf(address(this)).sub(beforeBalance);
     }
 }
 
