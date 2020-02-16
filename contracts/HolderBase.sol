@@ -13,6 +13,8 @@ contract HolderBase is IHolder {
 
     address public delegate;
     address public owner = msg.sender;
+    uint256 private _stopLoss;
+    uint256 private _takeProfit;
 
     modifier onlyOwner {
         require(msg.sender == owner, "Access denied");
@@ -24,21 +26,47 @@ contract HolderBase is IHolder {
         _;
     }
 
+    function stopLoss() public view returns(uint256) {
+        return _stopLoss;
+    }
+
+    function takeProfit() public view returns(uint256) {
+        return _takeProfit;
+    }
+
     function() external payable {
         require(msg.sender != tx.origin);
+    }
+
+    function pnl(IERC20 collateral, IERC20 debt, uint256 leverageRatio) public returns(uint256) {
+        uint256 value = _pnl(collateral, debt);
+        if (value > 1e18) {
+            return uint256(1e18).add(
+                value.sub(1e18).mul(leverageRatio)
+            );
+        } else {
+            return uint256(1e18).sub(
+                uint256(1e18).sub(value).mul(leverageRatio)
+            );
+        }
     }
 
     function openPosition(
         IERC20 collateral,
         IERC20 debt,
         uint256 amount,
-        uint256 leverageRatio
+        uint256 leverageRatio,
+        uint256 stopLossValue,
+        uint256 takeProfitValue
     )
         external
         payable
         onlyOwner
         returns(uint256)
     {
+        _stopLoss = stopLossValue;
+        _takeProfit = takeProfitValue;
+
         debt.universalTransferFrom(msg.sender, address(this), amount);
 
         _flashLoan(
@@ -121,6 +149,7 @@ contract HolderBase is IHolder {
 
     function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount) internal returns(uint256);
 
+    function _pnl(IERC20 collateral, IERC20 debt) internal returns(uint256);
     function _deposit(IERC20 token, uint256 amount) internal;
     function _redeem(IERC20 token, uint256 amount) internal;
     function _redeemAll(IERC20 token) internal;

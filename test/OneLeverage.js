@@ -24,7 +24,7 @@ contract('OneLeverage', function ([_, w1, w2]) {
 
         it('should be ok', async function () {
             await this.token.approve(this.one.address, 1000, { from: w1 });
-            await this.one.openPosition(1000, this.holder.address, { from: w1 });
+            await this.one.openPosition(1000, this.holder.address, 0, 0, { from: w1 });
         });
     });
 });

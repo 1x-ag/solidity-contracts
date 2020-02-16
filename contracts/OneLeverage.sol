@@ -17,6 +17,18 @@ contract OneLeverage is ERC20, ERC20Detailed {
 
     mapping(address => IHolder) public holders;
 
+    event OpenPosition(
+        address indexed owner,
+        uint256 amount,
+        uint256 stopLoss,
+        uint256 takeProfit
+    );
+
+    event ClosePosition(
+        address indexed owner,
+        uint256 pnl
+    );
+
     constructor(
         string memory name,
         string memory symbol,
@@ -24,8 +36,8 @@ contract OneLeverage is ERC20, ERC20Detailed {
         IERC20 debtToken,
         uint256 leverageRatio
     )
-    public
-    ERC20Detailed(name, symbol, 18)
+        public
+        ERC20Detailed(name, symbol, 18)
     {
         require(leverageRatio > 1, "Leverage ratio is too small");
         require(leverageRatio <= 10, "Leverage ratio is too huge");
@@ -35,7 +47,12 @@ contract OneLeverage is ERC20, ERC20Detailed {
         leverage = leverageRatio;
     }
 
-    function openPosition(uint256 amount, address newDelegate) external payable {
+    function openPosition(
+        uint256 amount,
+        address newDelegate,
+        uint256 stopLoss,
+        uint256 takeProfit
+    ) external payable {
         require(balanceOf(msg.sender) == 0, "Can't open second position");
 
         debt.universalTransferFrom(msg.sender, address(this), amount);
@@ -50,19 +67,40 @@ contract OneLeverage is ERC20, ERC20Detailed {
             uint256(- 1)
         );
 
-        uint256 balance = holder.openPosition.value(msg.value)(collateral, debt, amount, leverage);
+        uint256 balance = holder.openPosition.value(msg.value)(collateral, debt, amount, leverage, stopLoss, takeProfit);
         _mint(msg.sender, balance);
+        emit OpenPosition(msg.sender, balance, stopLoss, takeProfit);
     }
 
     function closePosition(address newDelegate) external {
-        require(balanceOf(msg.sender) != 0, "Can't close non-existing position");
+        closePositionFor(msg.sender, newDelegate);
+    }
 
-        IHolder holder = getOrCreateHolder(msg.sender);
+    function closePositionFor(address user, address newDelegate) public {
+        require(balanceOf(user) != 0, "Can't close non-existing position");
+
+        IHolder holder = getOrCreateHolder(user);
         if (newDelegate != address(0)) {
             HolderProxy(address(uint160(address(holder)))).upgradeDelegate(newDelegate);
         }
-        holder.closePosition(collateral, debt, msg.sender);
-        _burn(msg.sender, balanceOf(msg.sender));
+
+        uint256 pnl = holder.pnl(collateral, debt, leverage);
+        require(
+            msg.sender == user
+            || (
+                holder.stopLoss() != 0 &&
+                holder.stopLoss() <= pnl
+            )
+            || (
+                holder.takeProfit() != 0 &&
+                holder.takeProfit() >= pnl
+            ),
+            "Can close own position or position available for liquidation"
+        );
+
+        holder.closePosition(collateral, debt, user);
+        _burn(user, balanceOf(user));
+        emit ClosePosition(user, pnl);
     }
 
     // Internal

@@ -1,5 +1,6 @@
 pragma solidity ^0.5.0;
 
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interface/compound/ICERC20.sol";
 import "./interface/compound/ICompoundController.sol";
@@ -7,7 +8,7 @@ import "./UniversalERC20.sol";
 
 
 contract ProtocolCompound {
-
+    using SafeMath for uint256;
     using UniversalERC20 for IERC20;
 
     function collateralAmount(IERC20 token) public returns(uint256) {
@@ -16,6 +17,17 @@ contract ProtocolCompound {
 
     function borrowAmount(IERC20 token) public returns(uint256) {
         return _getCToken(token).borrowBalanceCurrent(address(this));
+    }
+
+    function _pnl(IERC20 collateral, IERC20 debt) internal returns(uint256) {
+        ICERC20 cCollateral = _getCToken(collateral);
+        ICERC20 cDebt = _getCToken(debt);
+        IPriceOracle oracle = cCollateral.comptroller().oracle();
+        return oracle.getUnderlyingPrice(address(cCollateral)).mul(collateralAmount(collateral))
+            .mul(1e18)
+            .div(
+                oracle.getUnderlyingPrice(address(cDebt)).mul(borrowAmount(debt))
+            );
     }
 
     function _deposit(IERC20 token, uint256 amount) internal {
