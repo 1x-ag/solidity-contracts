@@ -4,134 +4,82 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
+
 library UniversalERC20 {
 
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    address constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    IERC20 private constant ZERO_ADDRESS = IERC20(0x0000000000000000000000000000000000000000);
+    IERC20 private constant ETH_ADDRESS = IERC20(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
 
-    function universalTransfer(IERC20 token, address to, uint256 amount) internal {
-        universalTransfer(token, to, amount, false);
-    }
+    function universalTransfer(IERC20 token, address to, uint256 amount) internal returns(bool) {
+        if (amount == 0) {
+            return true;
+        }
 
-    function universalTransfer(IERC20 token, address to, uint256 amount, bool allowFail) internal returns(bool) {
-
-        if (token == IERC20(0) || address(token) == ETH_ADDRESS) {
-            if (allowFail) {
-                return address(uint160(to)).send(amount);
-            } else {
-                address(uint160(to)).transfer(amount);
-                return true;
-            }
+        if (isETH(token)) {
+            address(uint160(to)).transfer(amount);
         } else {
             token.safeTransfer(to, amount);
             return true;
         }
     }
 
-    function universalApprove(IERC20 token, address to, uint256 amount) internal {
-        if (address(token) == address(0) || address(token) == ETH_ADDRESS) {
+    function universalTransferFrom(IERC20 token, address from, address to, uint256 amount) internal {
+        if (amount == 0) {
             return;
         }
-        token.safeApprove(to, amount);
-    }
 
-    function universalTransferFrom(IERC20 token, address from, address to, uint256 amount) internal {
-        if (address(token) == address(0) || address(token) == ETH_ADDRESS) {
-            if (to == address(this)) {
-                require(from == msg.sender && msg.value >= amount, "msg.value is zero");
-                if (msg.value > amount) {
-                    msg.sender.transfer(msg.value.sub(amount));
-                }
-            } else {
+        if (isETH(token)) {
+            require(from == msg.sender && msg.value >= amount, "msg.value is zero");
+            if (to != address(this)) {
                 address(uint160(to)).transfer(amount);
             }
-            return;
+            if (msg.value > amount) {
+                msg.sender.transfer(msg.value.sub(amount));
+            }
+        } else {
+            token.safeTransferFrom(from, to, amount);
         }
-
-        token.safeTransferFrom(from, to, amount);
     }
 
-    function universalBalanceOf(IERC20 token, address who) internal returns (uint256) {
+    function universalApprove(IERC20 token, address to, uint256 amount) internal {
+        if (!isETH(token)) {
+            if (amount > 0 && token.allowance(address(this), to) > 0) {
+                token.safeApprove(to, 0);
+            }
+            token.safeApprove(to, amount);
+        }
+    }
 
-        if (address(token) == address(0) || address(token) == ETH_ADDRESS) {
+    function universalBalanceOf(IERC20 token, address who) internal view returns (uint256) {
+        if (isETH(token)) {
             return who.balance;
+        } else {
+            return token.balanceOf(who);
         }
-
-        (bool success, bytes memory data) = address(token).call(
-            abi.encodeWithSelector(token.balanceOf.selector, who)
-        );
-
-        return success ? _bytesToUint(data) : 0;
     }
 
-    function universalDecimals(IERC20 token) internal returns (uint256) {
+    function universalDecimals(IERC20 token) internal view returns (uint256) {
 
-        if (address(token) == address(0) || address(token) == ETH_ADDRESS) {
+        if (isETH(token)) {
             return 18;
         }
 
-        (bool success, bytes memory data) = address(token).call(
+        (bool success, bytes memory data) = address(token).staticcall.gas(5000)(
             abi.encodeWithSignature("decimals()")
         );
         if (!success) {
-            (success, data) = address(token).call(
+            (success, data) = address(token).staticcall.gas(5000)(
                 abi.encodeWithSignature("DECIMALS()")
             );
         }
 
-        return success ? _bytesToUint(data) : 18;
+        return success ? abi.decode(data, (uint256)) : 18;
     }
 
-    function universalName(IERC20 token) internal returns(string memory) {
-
-        if (address(token) == address(0) || address(token) == ETH_ADDRESS) {
-            return "Ether";
-        }
-
-        // solium-disable-next-line security/no-low-level-calls
-        (bool success, bytes memory symbol) = address(token).call(abi.encodeWithSignature("symbol()"));
-        if (!success) {
-            // solium-disable-next-line security/no-low-level-calls
-            (success, symbol) = address(token).call(abi.encodeWithSignature("SYMBOL()"));
-        }
-
-        return success ? _handleReturnBytes(symbol) : "";
-    }
-
-    function universalSymbol(IERC20 token) internal returns(string memory) {
-
-        if (address(token) == address(0) || address(token) == ETH_ADDRESS) {
-            return "ETH";
-        }
-
-        // solium-disable-next-line security/no-low-level-calls
-        (bool success, bytes memory name) = address(token).call(abi.encodeWithSignature("name()"));
-        if (!success) {
-            // solium-disable-next-line security/no-low-level-calls
-            (success, name) = address(token).call(abi.encodeWithSignature("NAME()"));
-        }
-
-        return success ? _handleReturnBytes(name) : "";
-    }
-
-    function _bytesToUint(bytes memory data) private pure returns(uint256 result) {
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
-            result := mload(add(data, 32))
-        }
-    }
-
-    function _handleReturnBytes(bytes memory str) private pure returns(string memory result) {
-
-        result = string(str);
-
-        if (str.length > 32) {
-            // solium-disable-next-line security/no-inline-assembly
-            assembly {
-                result := add(str, 32)
-            }
-        }
+    function isETH(IERC20 token) internal pure returns(bool) {
+        return (address(token) == address(ZERO_ADDRESS) || address(token) == address(ETH_ADDRESS));
     }
 }
