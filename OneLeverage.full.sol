@@ -917,13 +917,17 @@ contract OneLeverage is ERC20, ERC20Detailed {
         uint256 stopLoss,
         uint256 takeProfit
     ) external payable {
-        require(balanceOf(msg.sender) == 0, "Can't open second position");
-
         debt.universalTransferFrom(msg.sender, address(this), amount);
 
         IHolder holder = getOrCreateHolder(msg.sender);
         if (newDelegate != address(0)) {
             HolderProxy(address(uint160(address(holder)))).upgradeDelegate(newDelegate);
+        }
+
+        require(holder.borrowAmount(debt) == 0, "Can't open second position");
+        if (balanceOf(msg.sender) > 0) {
+            _burn(msg.sender, balanceOf(msg.sender));
+            emit ClosePosition(msg.sender, 0);
         }
 
         debt.universalApprove(
