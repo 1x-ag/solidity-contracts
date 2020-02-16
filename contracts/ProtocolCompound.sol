@@ -10,12 +10,12 @@ contract ProtocolCompound {
 
     using UniversalERC20 for IERC20;
 
-    function collateralAmount(IERC20 token) public view returns(uint256) {
+    function collateralAmount(IERC20 token) public returns(uint256) {
         return _getCToken(token).balanceOfUnderlying(address(this));
     }
 
-    function borrowAmount(IERC20 token) public view returns(uint256) {
-        return _getCToken(token).borrowBalanceStored(address(this));
+    function borrowAmount(IERC20 token) public returns(uint256) {
+        return _getCToken(token).borrowBalanceCurrent(address(this));
     }
 
     function _deposit(IERC20 token, uint256 amount) internal {

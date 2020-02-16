@@ -24,6 +24,10 @@ contract HolderBase is IHolder {
         _;
     }
 
+    function() external payable {
+        require(msg.sender != tx.origin);
+    }
+
     function openPosition(
         IERC20 collateral,
         IERC20 debt,

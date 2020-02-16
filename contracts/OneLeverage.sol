@@ -36,7 +36,6 @@ contract OneLeverage is ERC20, ERC20Detailed {
     }
 
     function openPosition(uint256 amount, address newDelegate) external payable {
-
         require(balanceOf(msg.sender) == 0, "Can't open second position");
 
         debt.universalTransferFrom(msg.sender, address(this), amount);

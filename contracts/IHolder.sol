@@ -21,6 +21,6 @@ contract IHolder {
     )
         external;
 
-    function collateralAmount(IERC20 token) public view returns(uint256);
-    function borrowAmount(IERC20 token) public view returns(uint256);
+    function collateralAmount(IERC20 token) public returns(uint256);
+    function borrowAmount(IERC20 token) public returns(uint256);
 }

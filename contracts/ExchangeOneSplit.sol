@@ -17,12 +17,12 @@ contract ExchangeOneSplit {
         fromToken.universalApprove(address(ONE_SPLIT), amount);
 
         uint256 beforeBalance = toToken.universalBalanceOf(address(this));
-        ONE_SPLIT.goodSwap(
+        ONE_SPLIT.goodSwap.value(fromToken.isETH() ? amount : 0)(
             fromToken,
             toToken,
             amount,
             0,
-            5,
+            1,
             0
         );
 

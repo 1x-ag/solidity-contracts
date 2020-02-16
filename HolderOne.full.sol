@@ -261,8 +261,8 @@ contract IHolder {
     )
         external;
 
-    function collateralAmount(IERC20 token) public view returns(uint256);
-    function borrowAmount(IERC20 token) public view returns(uint256);
+    function collateralAmount(IERC20 token) public returns(uint256);
+    function borrowAmount(IERC20 token) public returns(uint256);
 }
 
 // File: @openzeppelin/contracts/utils/Address.sol
@@ -529,6 +529,10 @@ contract HolderBase is IHolder {
         _;
     }
 
+    function() external payable {
+        require(msg.sender != tx.origin);
+    }
+
     function openPosition(
         IERC20 collateral,
         IERC20 debt,
@@ -774,12 +778,12 @@ contract ExchangeOneSplit {
         fromToken.universalApprove(address(ONE_SPLIT), amount);
 
         uint256 beforeBalance = toToken.universalBalanceOf(address(this));
-        ONE_SPLIT.goodSwap(
+        ONE_SPLIT.goodSwap.value(fromToken.isETH() ? amount : 0)(
             fromToken,
             toToken,
             amount,
             0,
-            5,
+            1,
             0
         );
 
@@ -805,8 +809,8 @@ pragma solidity ^0.5.0;
 
 contract ICERC20 is IERC20 {
     function comptroller() external view returns(ICompoundController);
-    function balanceOfUnderlying(address account) external view returns(uint256);
-    function borrowBalanceStored(address account) external view returns(uint256);
+    function balanceOfUnderlying(address account) external returns(uint256);
+    function borrowBalanceCurrent(address account) external returns(uint256);
 
     function mint() external payable;
     function mint(uint256 amount) external returns(uint256);
@@ -829,12 +833,12 @@ contract ProtocolCompound {
 
     using UniversalERC20 for IERC20;
 
-    function collateralAmount(IERC20 token) public view returns(uint256) {
+    function collateralAmount(IERC20 token) public returns(uint256) {
         return _getCToken(token).balanceOfUnderlying(address(this));
     }
 
-    function borrowAmount(IERC20 token) public view returns(uint256) {
-        return _getCToken(token).borrowBalanceStored(address(this));
+    function borrowAmount(IERC20 token) public returns(uint256) {
+        return _getCToken(token).borrowBalanceCurrent(address(this));
     }
 
     function _deposit(IERC20 token, uint256 amount) internal {

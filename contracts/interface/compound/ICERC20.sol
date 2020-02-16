@@ -5,8 +5,8 @@ import "./ICompoundController.sol";
 
 contract ICERC20 is IERC20 {
     function comptroller() external view returns(ICompoundController);
-    function balanceOfUnderlying(address account) external view returns(uint256);
-    function borrowBalanceStored(address account) external view returns(uint256);
+    function balanceOfUnderlying(address account) external returns(uint256);
+    function borrowBalanceCurrent(address account) external returns(uint256);
 
     function mint() external payable;
     function mint(uint256 amount) external returns(uint256);

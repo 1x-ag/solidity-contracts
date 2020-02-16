@@ -579,8 +579,8 @@ contract IHolder {
     )
         external;
 
-    function collateralAmount(IERC20 token) public view returns(uint256);
-    function borrowAmount(IERC20 token) public view returns(uint256);
+    function collateralAmount(IERC20 token) public returns(uint256);
+    function borrowAmount(IERC20 token) public returns(uint256);
 }
 
 // File: contracts/HolderProxy.sol
@@ -894,7 +894,6 @@ contract OneLeverage is ERC20, ERC20Detailed {
     }
 
     function openPosition(uint256 amount, address newDelegate) external payable {
-
         require(balanceOf(msg.sender) == 0, "Can't open second position");
 
         debt.universalTransferFrom(msg.sender, address(this), amount);
