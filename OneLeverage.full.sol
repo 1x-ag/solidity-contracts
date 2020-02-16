@@ -603,8 +603,8 @@ pragma solidity ^0.5.0;
 
 contract HolderProxy {
 
-    address public owner = msg.sender;
     address public delegate;
+    address public owner = msg.sender;
 
     function upgradeDelegate(address newDelegate) public {
         require(msg.sender == owner, "Access denied");
