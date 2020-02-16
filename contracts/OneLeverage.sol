@@ -66,10 +66,7 @@ contract OneLeverage is ERC20, ERC20Detailed {
             emit ClosePosition(msg.sender, 0);
         }
 
-        debt.universalApprove(
-            address(holder),
-            uint256(- 1)
-        );
+        debt.universalInfiniteApproveIfNeeded(address(holder));
 
         uint256 balance = holder.openPosition.value(msg.value)(collateral, debt, amount, leverage, stopLoss, takeProfit);
         _mint(msg.sender, balance);

@@ -3,6 +3,7 @@ pragma solidity ^0.5.0;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 
 
 library UniversalERC20 {
@@ -53,11 +54,27 @@ library UniversalERC20 {
         }
     }
 
+    function universalInfiniteApproveIfNeeded(IERC20 token, address to) internal {
+        if (!isETH(token)) {
+            if ((token.allowance(address(this), to) >> 255) == 0) {
+                token.safeApprove(to, uint256(-1));
+            }
+        }
+    }
+
     function universalBalanceOf(IERC20 token, address who) internal view returns (uint256) {
         if (isETH(token)) {
             return who.balance;
         } else {
             return token.balanceOf(who);
+        }
+    }
+
+    function universalSymbol(IERC20 token) internal view returns (string memory) {
+        if (isETH(token)) {
+            return "ETH";
+        } else {
+            return ERC20Detailed(address(token)).symbol();
         }
     }
 

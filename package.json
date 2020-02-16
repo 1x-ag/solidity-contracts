@@ -37,8 +37,9 @@
     "lint:sol:fix": "solium -d . --fix",
     "lint": "yarn run lint:js && yarn run lint:sol",
     "lint:fix": "yarn run lint:js:fix && yarn run lint:sol:fix",
-    "dist": "yarn run dist:leverage && yarn run dist:holder",
+    "dist": "yarn run dist:leverage && yarn run dist:factory && yarn run dist:holder",
     "dist:leverage": "truffle-flattener ./contracts/OneLeverage.sol > OneLeverage.full.sol && solcjs --bin --abi --optimize OneLeverage.full.sol && mv OneLeverage_full_sol_OneLeverage.bin OneLeverage.full.bin && mv OneLeverage_full_sol_OneLeverage.abi OneLeverage.full.abi && rm *_sol_*",
+    "dist:factory": "truffle-flattener ./contracts/Factory.sol > Factory.full.sol && solcjs --bin --abi --optimize Factory.full.sol && mv Factory_full_sol_Factory.bin Factory.full.bin && mv Factory_full_sol_Factory.abi Factory.full.abi && rm *_sol_*",
     "dist:holder": "truffle-flattener ./contracts/HolderOne.sol > HolderOne.full.sol && solcjs --bin --abi --optimize HolderOne.full.sol && mv HolderOne_full_sol_HolderOne.bin HolderOne.full.bin && mv HolderOne_full_sol_HolderOne.abi HolderOne.full.abi && rm *_sol_*"
   }
 }
