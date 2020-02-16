@@ -658,17 +658,16 @@ pragma solidity ^0.5.0;
 
 
 
-
-contract FlashLoanAave is IHolder {
+contract FlashLoanAave {
 
     using SafeMath for uint256;
     using UniversalERC20 for IERC20;
 
-    ILendingPool public pool = ILendingPool(0x398eC7346DcD622eDc5ae82352F02bE94C62d119);
-    address public core = 0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3;
+    ILendingPool public constant POOL = ILendingPool(0x398eC7346DcD622eDc5ae82352F02bE94C62d119);
+    address public constant CORE = 0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3;
 
     function _flashLoan(IERC20 token, uint256 amount, bytes memory data) internal {
-        pool.flashLoan(
+        POOL.flashLoan(
             address(this),
             address(token),
             amount,
@@ -677,7 +676,7 @@ contract FlashLoanAave is IHolder {
     }
 
     function _repayFlashLoan(IERC20 token, uint256 amount) internal {
-        token.universalTransfer(core, amount);
+        token.universalTransfer(CORE, amount);
     }
 
     // Callback for Aave flashLoan
@@ -689,7 +688,7 @@ contract FlashLoanAave is IHolder {
     )
         external
     {
-        require(msg.sender == address(pool), "Access denied, only pool alowed");
+        require(msg.sender == address(POOL), "Access denied, only pool alowed");
         (bool success, bytes memory data) = address(this).call(abi.encodePacked(params, amount.add(fee)));
         require(success, string(abi.encodePacked("External call failed: ", data)));
     }
@@ -769,13 +768,13 @@ contract ExchangeOneSplit {
     using SafeMath for uint256;
     using UniversalERC20 for IERC20;
 
-    IOneSplit public oneSplit = IOneSplit(0xDFf2AA5689FCBc7F479d8c84aC857563798436DD);
+    IOneSplit public constant ONE_SPLIT = IOneSplit(0xDFf2AA5689FCBc7F479d8c84aC857563798436DD);
 
     function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount) internal returns(uint256) {
-        fromToken.universalApprove(address(oneSplit), amount);
+        fromToken.universalApprove(address(ONE_SPLIT), amount);
 
         uint256 beforeBalance = toToken.balanceOf(address(this));
-        oneSplit.goodSwap(
+        ONE_SPLIT.goodSwap(
             fromToken,
             toToken,
             amount,
