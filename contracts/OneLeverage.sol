@@ -4,9 +4,11 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 import "./IHolder.sol";
 import "./HolderProxy.sol";
-
+import "./UniversalERC20.sol";
 
 contract OneLeverage is ERC20, ERC20Detailed {
+
+    using UniversalERC20 for IERC20;
 
     IERC20 public collateral;
     IERC20 public debt;
@@ -21,8 +23,8 @@ contract OneLeverage is ERC20, ERC20Detailed {
         IERC20 debtToken,
         uint256 leverageRatio
     )
-        public
-        ERC20Detailed(name, symbol, 18)
+    public
+    ERC20Detailed(name, symbol, 18)
     {
         require(leverageRatio > 1, "Leverage ratio is too small");
         require(leverageRatio <= 10, "Leverage ratio is too huge");
@@ -33,12 +35,21 @@ contract OneLeverage is ERC20, ERC20Detailed {
     }
 
     function openPosition(uint256 amount, address newDelegate) external payable {
+
         require(balanceOf(msg.sender) == 0, "Can't open second position");
+
+        debt.universalTransferFrom(msg.sender, address(this), amount);
 
         IHolder holder = getOrCreateHolder(msg.sender);
         if (newDelegate != address(0)) {
             HolderProxy(address(uint160(address(holder)))).upgradeDelegate(newDelegate);
         }
+
+        debt.universalApprove(
+            address(holder),
+            uint256(- 1)
+        );
+
         uint256 balance = holder.openPosition.value(msg.value)(collateral, debt, amount, leverage);
         _mint(msg.sender, balance);
     }
@@ -56,7 +67,7 @@ contract OneLeverage is ERC20, ERC20Detailed {
 
     // Internal
 
-    function getOrCreateHolder(address user) internal returns(IHolder) {
+    function getOrCreateHolder(address user) internal returns (IHolder) {
         IHolder holder = holders[user];
         if (holder == IHolder(0)) {
             holder = IHolder(address(new HolderProxy()));
