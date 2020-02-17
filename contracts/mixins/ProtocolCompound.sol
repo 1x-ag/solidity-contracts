@@ -2,14 +2,14 @@ pragma solidity ^0.5.0;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./interface/compound/ICERC20.sol";
-import "./interface/compound/ICompoundController.sol";
-import "./UniversalERC20.sol";
+import "../interface/compound/ICERC20.sol";
+import "../interface/compound/ICompoundController.sol";
+import "../IHolder.sol";
+import "../lib/UniversalERC20.sol";
 import "./CompoundUtils.sol";
-import "./OracleChainLink.sol";
 
 
-contract ProtocolCompound is CompoundUtils, OracleChainLink {
+contract ProtocolCompound is IIProtocol, IIOracle, CompoundUtils {
     using SafeMath for uint256;
     using UniversalERC20 for IERC20;
 

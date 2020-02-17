@@ -4,7 +4,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 import "./IHolder.sol";
 import "./HolderProxy.sol";
-import "./UniversalERC20.sol";
+import "./lib/UniversalERC20.sol";
 
 
 contract OneLeverage is ERC20, ERC20Detailed {
