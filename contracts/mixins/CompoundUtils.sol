@@ -9,7 +9,7 @@ contract CompoundUtils {
     using UniversalERC20 for IERC20;
 
     function _getCToken(IERC20 token) internal pure returns(ICERC20) {
-        if (token.isETH()) { // ETH
+        if (token.isETH()) {                                                // ETH
             return ICERC20(0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5);
         }
         if (token == IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F)) {  // DAI
