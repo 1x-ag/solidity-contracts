@@ -39,16 +39,7 @@ contract HolderBase is IHolder {
     }
 
     function pnl(IERC20 collateral, IERC20 debt, uint256 leverageRatio) public returns(uint256) {
-        uint256 value = _pnl(collateral, debt);
-        if (value > 1e18) {
-            return uint256(1e18).add(
-                value.sub(1e18).mul(leverageRatio)
-            );
-        } else {
-            return uint256(1e18).sub(
-                uint256(1e18).sub(value).mul(leverageRatio)
-            );
-        }
+        return _pnl(collateral, debt).mul(leverageRatio.sub(1)).div(leverageRatio);
     }
 
     function openPosition(
