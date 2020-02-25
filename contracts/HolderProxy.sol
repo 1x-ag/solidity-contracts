@@ -1,20 +1,26 @@
 pragma solidity ^0.5.0;
 
+import "./IHolder.sol";
 
-contract HolderProxy {
 
-    address public delegate;
+contract HolderProxy is IIProxy {
+
+    address private _delegate;
     address public owner = msg.sender;
+
+    function delegate() public view returns(address) {
+        return _delegate;
+    }
 
     function upgradeDelegate(address newDelegate) public {
         require(msg.sender == owner, "Access denied");
-        if (delegate != newDelegate) {
-            delegate = newDelegate;
+        if (_delegate != newDelegate && newDelegate != address(0)) {
+            _delegate = newDelegate;
         }
     }
 
     function() external payable {
-        address _impl = delegate;
+        address _impl = _delegate;
         require(_impl != address(0), "Delegate not initialized");
 
         assembly {
