@@ -47,17 +47,45 @@ contract OneLeverage is ERC20, ERC20Detailed {
         leverage = leverageRatio;
     }
 
+    function upgradeHolder(address newDelegate) public {
+        HolderProxy holder = HolderProxy(address(uint160(address(getOrCreateHolder(msg.sender)))));
+        require(newDelegate != address(0) && newDelegate != holder.delegate());
+        holder.upgradeDelegate(newDelegate);
+    }
+
+    function arbitraryCall(
+        IERC20[] calldata tokens,
+        uint256[] calldata amounts,
+        bytes calldata data
+    ) external payable {
+        IHolder holder = getOrCreateHolder(msg.sender);
+
+        for (uint i = 0; i < tokens.length; i++) {
+            tokens[i].universalTransferFrom(msg.sender, address(this), amounts[i]);
+            tokens[i].universalInfiniteApproveIfNeeded(address(holder));
+        }
+
+        (bool success,) = address(holder).call.value(msg.value)(abi.encodePacked(
+            data,
+            collateral,
+            debt,
+            leverage
+        ));
+        require(success);
+    }
+
     function openPosition(
-        uint256 amount,
         address newDelegate,
+        uint256 amount,
         uint256 stopLoss,
-        uint256 takeProfit
+        uint256 takeProfit,
+        uint256 minReturn
     ) external payable {
         debt.universalTransferFrom(msg.sender, address(this), amount);
 
         IHolder holder = getOrCreateHolder(msg.sender);
-        if (newDelegate != address(0)) {
-            HolderProxy(address(uint160(address(holder)))).upgradeDelegate(newDelegate);
+        if (holder.delegate() == address(0)) {
+            upgradeHolder(newDelegate);
         }
 
         require(holder.borrowAmount(debt) == 0, "Can't open second position");
@@ -68,23 +96,22 @@ contract OneLeverage is ERC20, ERC20Detailed {
 
         debt.universalInfiniteApproveIfNeeded(address(holder));
 
-        uint256 balance = holder.openPosition.value(msg.value)(collateral, debt, amount, leverage, stopLoss, takeProfit);
+        uint256 balance = holder.openPosition.value(msg.value)(collateral, debt, leverage, amount, minReturn, stopLoss, takeProfit);
         _mint(msg.sender, balance);
         emit OpenPosition(msg.sender, balance, stopLoss, takeProfit);
     }
 
-    function closePosition(address newDelegate) external {
-        closePositionFor(msg.sender, newDelegate);
+    function closePosition(uint256 minReturn) external {
+        closePositionFor(msg.sender, minReturn);
     }
 
-    function closePositionFor(address user, address newDelegate) public {
+    function closePositionFor(
+        address user,
+        uint256 minReturn
+    ) public {
         require(balanceOf(user) != 0, "Can't close non-existing position");
 
         IHolder holder = getOrCreateHolder(user);
-        if (newDelegate != address(0) && msg.sender == user) {
-            HolderProxy(address(uint160(address(holder)))).upgradeDelegate(newDelegate);
-        }
-
         uint256 pnl = holder.pnl(collateral, debt, leverage);
         require(
             msg.sender == user
@@ -99,7 +126,7 @@ contract OneLeverage is ERC20, ERC20Detailed {
             "Can close own position or position available for liquidation"
         );
 
-        holder.closePosition(collateral, debt, user);
+        holder.closePosition(collateral, debt, user, minReturn);
         _burn(user, balanceOf(user));
         emit ClosePosition(user, pnl);
     }

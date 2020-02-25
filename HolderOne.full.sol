@@ -243,15 +243,53 @@ pragma solidity ^0.5.0;
 
 
 
-contract IHolder {
+contract IIProxy {
+    function delegate() public view returns(address);
+    function upgradeDelegate(address newDelegate) public {}
+}
+
+
+contract IIFlashLoan {
+    function _flashLoan(IERC20 asset, uint256 amount, bytes memory data) internal;
+    function _repayFlashLoan(IERC20 token, uint256 amount) internal;
+}
+
+
+contract IIExchange {
+    function exchangeExpectedReturn(IERC20 fromToken, IERC20 toToken, uint256 amount) public returns(uint256);
+    function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount, uint256 minReturn) internal returns(uint256);
+}
+
+
+contract IIOracle {
+    function _getPrice(IERC20 token) internal view returns (uint256);
+}
+
+
+contract IIProtocol {
+    function collateralAmount(IERC20 token) public returns(uint256);
+    function borrowAmount(IERC20 token) public returns(uint256);
+    function pnl(IERC20 collateral, IERC20 debt, uint256 leverageRatio) public returns(uint256);
+
+    function _pnl(IERC20 collateral, IERC20 debt) internal returns(uint256);
+    function _deposit(IERC20 token, uint256 amount) internal;
+    function _redeem(IERC20 token, uint256 amount) internal;
+    function _redeemAll(IERC20 token) internal;
+    function _borrow(IERC20 token, uint256 amount) internal;
+    function _repay(IERC20 token, uint256 amount) internal;
+}
+
+
+contract IHolder is IIProxy, IIFlashLoan, IIExchange, IIProtocol {
     function stopLoss() public view returns(uint256);
     function takeProfit() public view returns(uint256);
 
     function openPosition(
         IERC20 collateral,
         IERC20 debt,
-        uint256 amount,
         uint256 leverageRatio,
+        uint256 amount,
+        uint256 minReturn,
         uint256 _stopLoss,
         uint256 _takeProfit
     )
@@ -262,13 +300,10 @@ contract IHolder {
     function closePosition(
         IERC20 collateral,
         IERC20 debt,
-        address user
+        address user,
+        uint256 minReturn
     )
         external;
-
-    function collateralAmount(IERC20 token) public returns(uint256);
-    function borrowAmount(IERC20 token) public returns(uint256);
-    function pnl(IERC20 collateral, IERC20 debt, uint256 leverageRatio) public returns(uint256);
 }
 
 // File: @openzeppelin/contracts/utils/Address.sol
@@ -477,7 +512,7 @@ contract ERC20Detailed is IERC20 {
     }
 }
 
-// File: contracts/UniversalERC20.sol
+// File: contracts/lib/UniversalERC20.sol
 
 pragma solidity ^0.5.0;
 
@@ -595,7 +630,7 @@ contract HolderBase is IHolder {
     using SafeMath for uint256;
     using UniversalERC20 for IERC20;
 
-    address public delegate;
+    address private _delegate;
     address public owner = msg.sender;
     uint256 private _stopLoss;
     uint256 private _takeProfit;
@@ -608,6 +643,10 @@ contract HolderBase is IHolder {
     modifier onlyCallback {
         require(msg.sender == address(this), "Access denied");
         _;
+    }
+
+    function delegate() public view returns(address) {
+        return _delegate;
     }
 
     function stopLoss() public view returns(uint256) {
@@ -623,23 +662,15 @@ contract HolderBase is IHolder {
     }
 
     function pnl(IERC20 collateral, IERC20 debt, uint256 leverageRatio) public returns(uint256) {
-        uint256 value = _pnl(collateral, debt);
-        if (value > 1e18) {
-            return uint256(1e18).add(
-                value.sub(1e18).mul(leverageRatio)
-            );
-        } else {
-            return uint256(1e18).sub(
-                uint256(1e18).sub(value).mul(leverageRatio)
-            );
-        }
+        return _pnl(collateral, debt).mul(leverageRatio.sub(1)).div(leverageRatio);
     }
 
     function openPosition(
         IERC20 collateral,
         IERC20 debt,
-        uint256 amount,
         uint256 leverageRatio,
+        uint256 amount,
+        uint256 minReturn,
         uint256 stopLossValue,
         uint256 takeProfitValue
     )
@@ -660,8 +691,9 @@ contract HolderBase is IHolder {
                 this.openPositionCallback.selector,
                 collateral,
                 debt,
+                leverageRatio,
                 amount,
-                leverageRatio
+                minReturn
                 // repayAmount added dynamically in executeOperation
             )
         );
@@ -672,14 +704,15 @@ contract HolderBase is IHolder {
     function openPositionCallback(
         IERC20 collateral,
         IERC20 debt,
-        uint256 amount,
         uint256 leverageRatio,
+        uint256 amount,
+        uint256 minReturn,
         uint256 repayAmount
     )
         external
         onlyCallback
     {
-        uint256 value = _exchange(debt, collateral, amount.mul(leverageRatio));
+        uint256 value = _exchange(debt, collateral, amount.mul(leverageRatio), minReturn);
         _deposit(collateral, value);
         _borrow(debt, repayAmount);
         _repayFlashLoan(debt, repayAmount);
@@ -688,7 +721,8 @@ contract HolderBase is IHolder {
     function closePosition(
         IERC20 collateral,
         IERC20 debt,
-        address user
+        address user,
+        uint256 minReturn
     )
         external
         onlyOwner
@@ -703,6 +737,7 @@ contract HolderBase is IHolder {
                 collateral,
                 debt,
                 user,
+                minReturn,
                 borrowedAmount
                 // repayAmount added dynamically in executeOperation
             )
@@ -713,6 +748,7 @@ contract HolderBase is IHolder {
         IERC20 collateral,
         IERC20 debt,
         address user,
+        uint256 minReturn,
         uint256 borrowedAmount,
         uint256 repayAmount
     )
@@ -721,24 +757,10 @@ contract HolderBase is IHolder {
     {
         _repay(debt, borrowedAmount);
         _redeemAll(collateral);
-        uint256 returnedAmount = _exchange(collateral, debt, collateral.universalBalanceOf(address(this)));
+        uint256 returnedAmount = _exchange(collateral, debt, collateral.universalBalanceOf(address(this)), minReturn);
         _repayFlashLoan(debt, repayAmount);
         debt.universalTransfer(user, returnedAmount.sub(repayAmount));
     }
-
-    // Internals for overriding
-
-    function _flashLoan(IERC20 asset, uint256 amount, bytes memory data) internal;
-    function _repayFlashLoan(IERC20 token, uint256 amount) internal;
-
-    function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount) internal returns(uint256);
-
-    function _pnl(IERC20 collateral, IERC20 debt) internal returns(uint256);
-    function _deposit(IERC20 token, uint256 amount) internal;
-    function _redeem(IERC20 token, uint256 amount) internal;
-    function _redeemAll(IERC20 token) internal;
-    function _borrow(IERC20 token, uint256 amount) internal;
-    function _repay(IERC20 token, uint256 amount) internal;
 }
 
 // File: contracts/interface/aave/IFlashLoanReceiver.sol
@@ -760,7 +782,7 @@ interface ILendingPool {
     function flashLoan(address _receiver, address _reserve, uint256 _amount, bytes calldata _params) external;
 }
 
-// File: contracts/FlashLoanAave.sol
+// File: contracts/mixins/FlashLoanAave.sol
 
 pragma solidity ^0.5.0;
 
@@ -770,7 +792,8 @@ pragma solidity ^0.5.0;
 
 
 
-contract FlashLoanAave {
+
+contract FlashLoanAave is IIFlashLoan {
 
     using SafeMath for uint256;
     using UniversalERC20 for IERC20;
@@ -866,7 +889,7 @@ contract IOneSplit {
         payable;
 }
 
-// File: contracts/ExchangeOneSplit.sol
+// File: contracts/mixins/ExchangeOneSplit.sol
 
 pragma solidity ^0.5.0;
 
@@ -875,14 +898,26 @@ pragma solidity ^0.5.0;
 
 
 
-contract ExchangeOneSplit {
+
+contract ExchangeOneSplit is IIExchange {
 
     using SafeMath for uint256;
     using UniversalERC20 for IERC20;
 
     IOneSplit public constant ONE_SPLIT = IOneSplit(0xDFf2AA5689FCBc7F479d8c84aC857563798436DD);
 
-    function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount) internal returns(uint256) {
+    function exchangeExpectedReturn(IERC20 fromToken, IERC20 toToken, uint256 amount) public returns(uint256) {
+        (uint256 returnAmount,) = ONE_SPLIT.getExpectedReturn(
+            fromToken,
+            toToken,
+            amount,
+            4,
+            0
+        );
+        return returnAmount;
+    }
+
+    function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount, uint256 minReturn) internal returns(uint256) {
         fromToken.universalApprove(address(ONE_SPLIT), amount);
 
         uint256 beforeBalance = toToken.universalBalanceOf(address(this));
@@ -890,8 +925,8 @@ contract ExchangeOneSplit {
             fromToken,
             toToken,
             amount,
-            0,
-            1,
+            minReturn,
+            4,
             0
         );
 
@@ -944,7 +979,7 @@ contract ICERC20 is IERC20 {
     function repayBorrow(uint256 repayAmount) external returns (uint256);
 }
 
-// File: contracts/CompoundUtils.sol
+// File: contracts/mixins/CompoundUtils.sol
 
 pragma solidity ^0.5.0;
 
@@ -982,59 +1017,7 @@ contract CompoundUtils {
     }
 }
 
-// File: contracts/interface/chainlink/IAggregator.sol
-
-pragma solidity ^0.5.0;
-
-
-interface IAggregator {
-  function latestAnswer() external view returns (int256);
-}
-
-// File: contracts/OracleChainLink.sol
-
-pragma solidity ^0.5.0;
-
-
-
-
-
-contract OracleChainLink {
-    using UniversalERC20 for IERC20;
-
-    function getChainLinkOracleByToken(IERC20 token) private pure returns (IAggregator) {
-        if (token == IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F)) {  // DAI
-            return IAggregator(0x037E8F2125bF532F3e228991e051c8A7253B642c);
-        }
-        if (token == IERC20(0x0D8775F648430679A709E98d2b0Cb6250d2887EF)) {  // BAT
-            return IAggregator(0x9b4e2579895efa2b4765063310Dc4109a7641129);
-        }
-        if (token == IERC20(0x1985365e9f78359a9B6AD760e32412f4a445E862)) {  // REP
-            return IAggregator(0xb8b513d9cf440C1b6f5C7142120d611C94fC220c);
-        }
-        if (token == IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)) {  // USDC
-            return IAggregator(0xdE54467873c3BCAA76421061036053e371721708);
-        }
-        if (token == IERC20(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599)) {  // WBTC
-            return IAggregator(0x0133Aa47B6197D0BA090Bf2CD96626Eb71fFd13c);
-        }
-        if (token == IERC20(0xE41d2489571d322189246DaFA5ebDe1F4699F498)) {  // ZRX
-            return IAggregator(0xA0F9D94f060836756FFC84Db4C78d097cA8C23E8);
-        }
-
-        revert("Unsupported token");
-    }
-
-    function _getPrice(IERC20 token) internal view returns (uint256) {
-        if (token.isETH()) {
-            return 1e18;
-        }
-
-        return uint256(getChainLinkOracleByToken(token).latestAnswer());
-    }
-}
-
-// File: contracts/ProtocolCompound.sol
+// File: contracts/mixins/ProtocolCompound.sol
 
 pragma solidity ^0.5.0;
 
@@ -1046,7 +1029,7 @@ pragma solidity ^0.5.0;
 
 
 
-contract ProtocolCompound is CompoundUtils, OracleChainLink {
+contract ProtocolCompound is IIProtocol, IIOracle, CompoundUtils {
     using SafeMath for uint256;
     using UniversalERC20 for IERC20;
 
@@ -1124,6 +1107,60 @@ contract ProtocolCompound is CompoundUtils, OracleChainLink {
     }
 }
 
+// File: contracts/interface/chainlink/IAggregator.sol
+
+pragma solidity ^0.5.0;
+
+
+interface IAggregator {
+  function latestAnswer() external view returns (int256);
+}
+
+// File: contracts/mixins/OracleChainLink.sol
+
+pragma solidity ^0.5.0;
+
+
+
+
+
+
+contract OracleChainLink is IIOracle {
+
+    using UniversalERC20 for IERC20;
+
+    function _getPrice(IERC20 token) internal view returns (uint256) {
+        if (token.isETH()) {
+            return 1e18;
+        }
+
+        return uint256(_getChainLinkOracleByToken(token).latestAnswer());
+    }
+
+    function _getChainLinkOracleByToken(IERC20 token) private pure returns (IAggregator) {
+        if (token == IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F)) {  // DAI
+            return IAggregator(0x037E8F2125bF532F3e228991e051c8A7253B642c);
+        }
+        if (token == IERC20(0x0D8775F648430679A709E98d2b0Cb6250d2887EF)) {  // BAT
+            return IAggregator(0x9b4e2579895efa2b4765063310Dc4109a7641129);
+        }
+        if (token == IERC20(0x1985365e9f78359a9B6AD760e32412f4a445E862)) {  // REP
+            return IAggregator(0xb8b513d9cf440C1b6f5C7142120d611C94fC220c);
+        }
+        if (token == IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)) {  // USDC
+            return IAggregator(0xdE54467873c3BCAA76421061036053e371721708);
+        }
+        if (token == IERC20(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599)) {  // WBTC
+            return IAggregator(0x0133Aa47B6197D0BA090Bf2CD96626Eb71fFd13c);
+        }
+        if (token == IERC20(0xE41d2489571d322189246DaFA5ebDe1F4699F498)) {  // ZRX
+            return IAggregator(0xA0F9D94f060836756FFC84Db4C78d097cA8C23E8);
+        }
+
+        revert("Unsupported token");
+    }
+}
+
 // File: contracts/HolderOne.sol
 
 pragma solidity ^0.5.0;
@@ -1133,11 +1170,15 @@ pragma solidity ^0.5.0;
 
 
 
+//import "./mixins/OracleCompound.sol";
+
 
 contract HolderOne is
     HolderBase,
     FlashLoanAave,
     ExchangeOneSplit,
-    ProtocolCompound
+    ProtocolCompound,
+    OracleChainLink
+    //OracleCompound
 {
 }

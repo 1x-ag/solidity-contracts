@@ -11,7 +11,7 @@ contract HolderBase is IHolder {
     using SafeMath for uint256;
     using UniversalERC20 for IERC20;
 
-    address public delegate;
+    address private _delegate;
     address public owner = msg.sender;
     uint256 private _stopLoss;
     uint256 private _takeProfit;
@@ -24,6 +24,10 @@ contract HolderBase is IHolder {
     modifier onlyCallback {
         require(msg.sender == address(this), "Access denied");
         _;
+    }
+
+    function delegate() public view returns(address) {
+        return _delegate;
     }
 
     function stopLoss() public view returns(uint256) {
@@ -45,8 +49,9 @@ contract HolderBase is IHolder {
     function openPosition(
         IERC20 collateral,
         IERC20 debt,
-        uint256 amount,
         uint256 leverageRatio,
+        uint256 amount,
+        uint256 minReturn,
         uint256 stopLossValue,
         uint256 takeProfitValue
     )
@@ -67,8 +72,9 @@ contract HolderBase is IHolder {
                 this.openPositionCallback.selector,
                 collateral,
                 debt,
+                leverageRatio,
                 amount,
-                leverageRatio
+                minReturn
                 // repayAmount added dynamically in executeOperation
             )
         );
@@ -79,14 +85,15 @@ contract HolderBase is IHolder {
     function openPositionCallback(
         IERC20 collateral,
         IERC20 debt,
-        uint256 amount,
         uint256 leverageRatio,
+        uint256 amount,
+        uint256 minReturn,
         uint256 repayAmount
     )
         external
         onlyCallback
     {
-        uint256 value = _exchange(debt, collateral, amount.mul(leverageRatio));
+        uint256 value = _exchange(debt, collateral, amount.mul(leverageRatio), minReturn);
         _deposit(collateral, value);
         _borrow(debt, repayAmount);
         _repayFlashLoan(debt, repayAmount);
@@ -95,7 +102,8 @@ contract HolderBase is IHolder {
     function closePosition(
         IERC20 collateral,
         IERC20 debt,
-        address user
+        address user,
+        uint256 minReturn
     )
         external
         onlyOwner
@@ -110,6 +118,7 @@ contract HolderBase is IHolder {
                 collateral,
                 debt,
                 user,
+                minReturn,
                 borrowedAmount
                 // repayAmount added dynamically in executeOperation
             )
@@ -120,6 +129,7 @@ contract HolderBase is IHolder {
         IERC20 collateral,
         IERC20 debt,
         address user,
+        uint256 minReturn,
         uint256 borrowedAmount,
         uint256 repayAmount
     )
@@ -128,22 +138,8 @@ contract HolderBase is IHolder {
     {
         _repay(debt, borrowedAmount);
         _redeemAll(collateral);
-        uint256 returnedAmount = _exchange(collateral, debt, collateral.universalBalanceOf(address(this)));
+        uint256 returnedAmount = _exchange(collateral, debt, collateral.universalBalanceOf(address(this)), minReturn);
         _repayFlashLoan(debt, repayAmount);
         debt.universalTransfer(user, returnedAmount.sub(repayAmount));
     }
-
-    // Internals for overriding
-
-    function _flashLoan(IERC20 asset, uint256 amount, bytes memory data) internal;
-    function _repayFlashLoan(IERC20 token, uint256 amount) internal;
-
-    function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount) internal returns(uint256);
-
-    function _pnl(IERC20 collateral, IERC20 debt) internal returns(uint256);
-    function _deposit(IERC20 token, uint256 amount) internal;
-    function _redeem(IERC20 token, uint256 amount) internal;
-    function _redeemAll(IERC20 token) internal;
-    function _borrow(IERC20 token, uint256 amount) internal;
-    function _repay(IERC20 token, uint256 amount) internal;
 }

@@ -11,12 +11,20 @@ contract Factory {
 
     mapping(address => mapping(address => mapping(uint256 => OneLeverage))) public assets;
 
+    event NewLeverageToken(
+        address indexed token,
+        address collateral,
+        address debt,
+        uint256 leverage
+    );
+
     function openPosition(
+        address newDelegate,
         IERC20 collateral,
         IERC20 debt,
         uint256 leverage,
         uint256 amount,
-        address newDelegate,
+        uint256 minReturn,
         uint256 stopLoss,
         uint256 takeProfit
     ) public payable {
@@ -34,14 +42,22 @@ contract Factory {
                 leverage
             );
             assets[address(collateral)][address(debt)][leverage] = one;
+
+            emit NewLeverageToken(
+                address(one),
+                address(collateral),
+                address(debt),
+                leverage
+            );
         }
 
         debt.universalInfiniteApproveIfNeeded(address(one));
         one.openPosition.value(msg.value)(
-            amount,
             newDelegate,
+            amount,
             stopLoss,
-            takeProfit
+            takeProfit,
+            minReturn
         );
 
         IERC20(one).universalTransfer(msg.sender, one.balanceOf(address(this)));

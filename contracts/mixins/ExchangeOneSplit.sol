@@ -14,7 +14,18 @@ contract ExchangeOneSplit is IIExchange {
 
     IOneSplit public constant ONE_SPLIT = IOneSplit(0xDFf2AA5689FCBc7F479d8c84aC857563798436DD);
 
-    function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount) internal returns(uint256) {
+    function exchangeExpectedReturn(IERC20 fromToken, IERC20 toToken, uint256 amount) public returns(uint256) {
+        (uint256 returnAmount,) = ONE_SPLIT.getExpectedReturn(
+            fromToken,
+            toToken,
+            amount,
+            4,
+            0
+        );
+        return returnAmount;
+    }
+
+    function _exchange(IERC20 fromToken, IERC20 toToken, uint256 amount, uint256 minReturn) internal returns(uint256) {
         fromToken.universalApprove(address(ONE_SPLIT), amount);
 
         uint256 beforeBalance = toToken.universalBalanceOf(address(this));
@@ -22,8 +33,8 @@ contract ExchangeOneSplit is IIExchange {
             fromToken,
             toToken,
             amount,
-            0,
-            1,
+            minReturn,
+            4,
             0
         );
 
